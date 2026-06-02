@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>InterClouder</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --panel: #131a2e;
+    --panel-2: #1b2440;
+    --line: #283356;
+    --txt: #e6ecff;
+    --muted: #8b97c4;
+    --accent: #5b8cff;
+    --accent-2: #00d9c0;
+    --danger: #ff5d6c;
+    --ok: #38d39f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background:
+      radial-gradient(900px 500px at 80% -10%, #1c2440 0%, transparent 60%),
+      radial-gradient(700px 500px at 0% 110%, #122 0%, transparent 55%),
+      var(--bg);
+    color: var(--txt);
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .app {
+    width: 100%; max-width: 420px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,.5);
+  }
+  .brand {
+    padding: 28px 28px 18px;
+    background: linear-gradient(135deg, #1a2440, var(--panel-2));
+    border-bottom: 1px solid var(--line);
+  }
+  .brand h1 {
+    font-size: 26px; letter-spacing: .5px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .brand p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .body { padding: 24px 28px 28px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 18px; }
+  .tab {
+    flex: 1; padding: 10px; text-align: center; cursor: pointer;
+    border-radius: 10px; font-size: 14px; color: var(--muted);
+    background: var(--panel-2); border: 1px solid transparent;
+    transition: .15s;
+  }
+  .tab.active { color: var(--txt); border-color: var(--accent); background: #1e2950; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 14px 0 6px; }
+  input {
+    width: 100%; padding: 12px 14px; border-radius: 10px;
+    background: var(--bg); border: 1px solid var(--line); color: var(--txt);
+    font-size: 14px; outline: none; transition: .15s;
+  }
+  input:focus { border-color: var(--accent); }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
+  button.primary {
+    width: 100%; margin-top: 20px; padding: 13px;
+    border: none; border-radius: 10px; cursor: pointer;
+    font-size: 15px; font-weight: 600; color: #061021;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: .15s;
+  }
+  button.primary:hover { filter: brightness(1.08); }
+  button.primary:disabled { opacity: .5; cursor: not-allowed; }
+  .msg { margin-top: 14px; font-size: 13px; padding: 10px 12px; border-radius: 8px; display: none; }
+  .msg.err { display: block; background: #2a1620; color: var(--danger); border: 1px solid #4a2230; }
+  .msg.ok { display: block; background: #0f2620; color: var(--ok); border: 1px solid #1d4a3a; }
+
+  /* Panel de sesión */
+  .card-user { text-align: center; }
+  .avatar {
+    width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px; font-weight: 700; color: #061021;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  }
+  .nombre-mostrado { font-size: 22px; font-weight: 700; }
+  .tag { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .divider { height: 1px; background: var(--line); margin: 22px 0; }
+  .row { display: flex; gap: 8px; }
+  .row input { flex: 1; }
+  .btn-sm {
+    padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--txt); cursor: pointer; font-size: 13px;
+  }
+  .btn-sm:hover { border-color: var(--accent); }
+  .btn-danger { border-color: #4a2230; color: var(--danger); }
+  .logout { margin-top: 18px; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; width: 100%; }
+  .logout:hover { color: var(--danger); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="brand">
+    <h1>InterClouder</h1>
+    <p>Tu nube, tu gente — base de cuenta e identidad</p>
+  </div>
+  <div class="body" id="root"></div>
+</div>
+
+<script>
+// ⚙️ Cambia esto a la URL de tu backend
+const API = 'http://localhost:3000';
+let token = localStorage.getItem('ic_token') || null;
+
+const root = document.getElementById('root');
+
+function msg(text, ok=false) {
+  return `<div class="msg ${ok?'ok':'err'}">${text}</div>`;
+}
+
+async function api(path, method='GET', body=null) {
+  const res = await fetch(API + path, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: 'Bearer ' + token } : {}),
+    },
+    body: body ? JSON.stringify(body) : null,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Error de servidor');
+  return data;
+}
+
+// ---------- Pantalla de auth ----------
+let tab = 'login';
+function renderAuth(error='') {
+  root.innerHTML = `
+    <div class="tabs">
+      <div class="tab ${tab==='login'?'active':''}" onclick="setTab('login')">Iniciar sesión</div>
+      <div class="tab ${tab==='registro'?'active':''}" onclick="setTab('registro')">Crear cuenta</div>
+    </div>
+    ${tab==='login' ? `
+      <label>Nombre completo</label>
+      <input id="tag" placeholder="Juan#04821" />
+      <div class="hint">Tu nombre con el código de 5 cifras.</div>
+      <label>Contraseña</label>
+      <input id="pw" type="password" placeholder="••••••" />
+      <button class="primary" onclick="login()">Entrar</button>
+    ` : `
+      <label>Nombre</label>
+      <input id="nombre" placeholder="Juan" maxlength="32" />
+      <div class="hint">Se te asignará un código único: Juan<b>#04821</b></div>
+      <label>Apodo (opcional)</label>
+      <input id="apodo" placeholder="Cómo quieres que te vean" maxlength="32" />
+      <label>Contraseña</label>
+      <input id="pw" type="password" placeholder="mínimo 6 caracteres" />
+      <button class="primary" onclick="registro()">Crear cuenta</button>
+    `}
+    ${error ? msg(error) : ''}
+  `;
+}
+function setTab(t){ tab=t; renderAuth(); }
+
+async function login() {
+  try {
+    const tag = document.getElementById('tag').value.trim();
+    const password = document.getElementById('pw').value;
+    const r = await api('/api/login', 'POST', { tag, password });
+    token = r.token; localStorage.setItem('ic_token', token);
+    renderUser(r.usuario);
+  } catch(e){ renderAuth(e.message); }
+}
+
+async function registro() {
+  try {
+    const nombre = document.getElementById('nombre').value.trim();
+    const apodo = document.getElementById('apodo').value.trim();
+    const password = document.getElementById('pw').value;
+    const r = await api('/api/registro', 'POST', { nombre, apodo: apodo||null, password });
+    token = r.token; localStorage.setItem('ic_token', token);
+    renderUser(r.usuario);
+  } catch(e){ renderAuth(e.message); }
+}
+
+// ---------- Pantalla de usuario ----------
+function inicial(u){ return (u.apodo || u.nombre || '?').charAt(0).toUpperCase(); }
+
+function renderUser(u, feedback='') {
+  root.innerHTML = `
+    <div class="card-user">
+      <div class="avatar">${inicial(u)}</div>
+      <div class="nombre-mostrado">${u.nombre_mostrado}</div>
+      <div class="tag">${u.tag_completo}${u.apodo ? ' · apodo activo' : ' · sin apodo'}</div>
+    </div>
+    <div class="divider"></div>
+    <label>Cambiar apodo</label>
+    <div class="row">
+      <input id="nuevoApodo" placeholder="Nuevo apodo" maxlength="32" value="${u.apodo||''}" />
+      <button class="btn-sm" onclick="guardarApodo()">Guardar</button>
+    </div>
+    <div class="hint">Máx. 3 cambios por hora. El apodo se muestra por encima de tu nombre.</div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn-sm btn-danger" style="flex:1" onclick="borrarApodo()">Borrar apodo (volver a ${u.tag_completo})</button>
+    </div>
+    ${feedback}
+    <button class="logout" onclick="logout()">Cerrar sesión</button>
+  `;
+}
+
+async function guardarApodo() {
+  try {
+    const apodo = document.getElementById('nuevoApodo').value.trim();
+    const r = await api('/api/apodo', 'PUT', { apodo });
+    renderUser(r.usuario, msg('Apodo actualizado.', true));
+  } catch(e){ refreshUser(e.message); }
+}
+async function borrarApodo() {
+  try {
+    const r = await api('/api/apodo', 'PUT', { apodo: null });
+    renderUser(r.usuario, msg('Apodo borrado. Ahora se muestra tu nombre#codigo.', true));
+  } catch(e){ refreshUser(e.message); }
+}
+async function refreshUser(error='') {
+  try {
+    const r = await api('/api/yo');
+    renderUser(r.usuario, error ? msg(error) : '');
+  } catch(e){ logout(); }
+}
+function logout(){ token=null; localStorage.removeItem('ic_token'); tab='login'; renderAuth(); }
+
+// ---------- Arranque ----------
+(async function init(){
+  if (token) {
+    try { const r = await api('/api/yo'); renderUser(r.usuario); return; }
+    catch { logout(); return; }
+  }
+  renderAuth();
+})();
+window.setTab=setTab; window.login=login; window.registro=registro;
+window.guardarApodo=guardarApodo; window.borrarApodo=borrarApodo; window.logout=logout;
+</script>
+</body>
+</html>
